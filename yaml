@@ -1,0 +1,37 @@
+name: CI / Build & Deploy to Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Cloud SDK auth
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Configure gcloud project
+        run: |
+          gcloud config set project ${{ secrets.GCP_PROJECT }}
+
+      - name: Build and push image to Artifact Registry (or GCR)
+        env:
+          PROJECT_ID: ${{ secrets.GCP_PROJECT }}
+          IMAGE: "gcr.io/${{ secrets.GCP_PROJECT }}/simple-flask-app:${{ github.sha }}"
+        run: |
+          gcloud builds submit --tag $IMAGE
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ secrets.CLOUD_RUN_SERVICE }} \
+            --image "gcr.io/${{ secrets.GCP_PROJECT }}/simple-flask-app:${{ github.sha }}" \
+            --region "us-central1" \
+            --platform managed \
+            --allow-unauthenticated
